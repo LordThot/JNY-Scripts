@@ -1,0 +1,88 @@
+// ==UserScript==
+// @name         [JNY] DT Market Tooltip fix 
+// @namespace    dtMarketTooltipFix
+// @description with DT enabled you can not tap large icon in market to see stats
+// @version      1.0
+// @match        https://elgea.illyriad.co.uk/*
+// @run-at       document-end
+// ==/UserScript==
+
+(() => {
+
+    const TARGET = "#/Trade/Markets";
+
+    let box = null;
+
+    function isTargetPage() {
+        return location.hash.startsWith(TARGET);
+    }
+
+    function ensureBox() {
+        if (box) return box;
+
+        box = document.createElement("div");
+        box.style.cssText = `
+            position: fixed;
+            left: -9999px;
+            top: -9999px;
+            background: #222;
+            color: #fff;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            max-width: 220px;
+            z-index: 999999;
+            white-space: pre-line;
+            pointer-events: none;
+        `;
+
+        document.body.appendChild(box);
+        return box;
+    }
+
+    function show(el, e) {
+        const text = el.getAttribute("title");
+        if (!text) return;
+
+        const tooltip = ensureBox();
+        tooltip.textContent = text;
+
+        requestAnimationFrame(() => {
+            let x = e.clientX + 12;
+            let y = e.clientY + 12;
+
+            const maxX = window.innerWidth - 240;
+            const maxY = window.innerHeight - 100;
+
+            if (x > maxX) x = maxX;
+            if (y > maxY) y = maxY;
+
+            tooltip.style.left = x + "px";
+            tooltip.style.top = y + "px";
+        });
+    }
+
+    function hide() {
+        if (!box) return;
+        box.style.left = "-9999px";
+        box.style.top = "-9999px";
+    }
+
+    document.addEventListener("click", (e) => {
+
+        if (!isTargetPage()) return;
+
+        const el = e.target.closest("#currentIcon");
+
+        if (el) {
+            e.preventDefault();
+            e.stopPropagation();
+            show(el, e);
+            return;
+        }
+
+        hide();
+
+    }, true);
+
+})();
