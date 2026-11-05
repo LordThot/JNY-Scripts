@@ -1,0 +1,314 @@
+// ==UserScript==
+// @name         CMD Max Possible Level
+// @namespace    commander-max-lvl
+// @version      1.0
+// @description  Displays a commander's maximum level inline beside the current level on the Commanders page.
+// @author       Bobtron (fixed by JNY)
+// @match        https://elgea.illyriad.co.uk/*
+// @run-at       document-start
+// @grant        none
+// ==/UserScript==
+
+(function () {
+    'use strict';
+
+    const COMMANDER_TABLE_SELECTOR =
+        '#MainContentDiv > div.info > div.accordionCommand.ui-accordion.ui-widget.ui-helper-reset.ui-accordion-icons';
+    const ANNOTATION_SELECTOR = '[data-cmd-max-possible-level="true"]';
+    const CURRENT_LEVEL_SELECTOR = '[data-cmd-current-level="true"]';
+    const COMMANDERS_ROUTE = '/Military/Commanders';
+
+    let observer = null;
+    let scanTimer = null;
+    let recoveryTimer = null;
+    let observedRoot = null;
+
+    // Install sizing rules before the SPA builds its Commander table. This avoids
+    // changing each cell's width after it has already been painted.
+    function installEarlyStyles() {
+        if (document.getElementById('cmd-max-level-layout-style')) return;
+        const style = document.createElement('style');
+        style.id = 'cmd-max-level-layout-style';
+        style.textContent = COMMANDER_TABLE_SELECTOR + ':not([data-cmd-max-level-ready="true"]) { visibility:hidden !important; }' +
+            COMMANDER_TABLE_SELECTOR + '[data-cmd-max-level-ready="true"] { visibility:visible !important; }' +
+            COMMANDER_TABLE_SELECTOR + ' h3 a table tbody tr td:nth-child(6) {' +
+            'width:88px !important; min-width:88px !important; max-width:88px !important; box-sizing:border-box !important; text-align:left !important; white-space:nowrap !important; overflow:visible !important;' +
+            '}' +
+            COMMANDER_TABLE_SELECTOR + ' h3 a table tbody tr td:nth-child(6) ' + CURRENT_LEVEL_SELECTOR + ' {' +
+            'display:inline-block !important; width:2.2em !important; min-width:2.2em !important; box-sizing:content-box !important; text-align:right !important; margin-right:0.12em !important;' +
+            '}' +
+            '}';
+        (document.head || document.documentElement).appendChild(style);
+    }
+
+    function isCommandersRoute() {
+        return window.location.hash.includes(COMMANDERS_ROUTE);
+    }
+
+    // XP thresholds are cumulative. The original formula is used through level 74;
+    // the high-level formula is retained from the source for level 75 and above.
+    function xpRequiredForLevel(level) {
+        if (level <= 74) {
+            return 10 * (level * level - level + 1);
+        }
+        return 57250 + 100 * (level - 76) * (level - 59);
+    }
+
+    // Binary search avoids iterating through every level and preserves the original
+    // threshold boundaries, including the transition from level 74 to 75.
+    function calculateMaxPossibleLevel(xp) {
+        if (!Number.isFinite(xp) || xp < 0) return null;
+
+        let low = 0;
+        let high = 1;
+        const maxSearchLevel = 10000000;
+
+        while (high < maxSearchLevel && xpRequiredForLevel(high) <= xp) {
+            low = high;
+            high = Math.min(high * 2, maxSearchLevel);
+        }
+        if (xpRequiredForLevel(high) <= xp) return high;
+
+        while (low + 1 < high) {
+            const middle = Math.floor((low + high) / 2);
+            if (xpRequiredForLevel(middle) <= xp) {
+                low = middle;
+            } else {
+                high = middle;
+            }
+        }
+
+        // The game should never reach the search cap; return the bounded result
+        // rather than allowing malformed XP text to create an endless loop.
+        return low;
+    }
+
+    function removeAnnotations() {
+        document.querySelectorAll(ANNOTATION_SELECTOR).forEach((annotation) => annotation.remove());
+    }
+
+    function readCurrentXp(xpCell) {
+        // The cell is expected to show current XP before a slash, e.g. "12,345 / ...".
+        const match = xpCell.textContent.trim().match(/^([\d,]+)/);
+        if (!match) return null;
+        const xp = Number(match[1].replace(/,/g, ''));
+        return Number.isFinite(xp) && xp >= 0 ? xp : null;
+    }
+
+    function readCurrentLevel(levelCell) {
+        const match = levelCell.textContent.trim().match(/^(\d+)/);
+        return match ? Number(match[1]) : null;
+    }
+
+    function scanCommanders() {
+        if (!isCommandersRoute()) {
+            removeAnnotations();
+            return;
+        }
+
+        const commanderTable = document.querySelector(COMMANDER_TABLE_SELECTOR);
+        if (!commanderTable) return; // SPA content may not have loaded yet.
+
+        const rows = commanderTable.querySelectorAll('h3 a table tbody tr');
+        if (rows.length === 0) {
+            // Fail-safe: never leave the whole panel invisible indefinitely if the
+            // game's markup changes or commander rows fail to populate.
+            if (recoveryTimer === null) recoveryTimer = window.setTimeout(() => {
+                recoveryTimer = null;
+                if (commanderTable.isConnected &&
+                    !commanderTable.hasAttribute('data-cmd-max-level-ready')) {
+                    commanderTable.setAttribute('data-cmd-max-level-ready', 'true');
+                }
+            }, 3000);
+            return;
+        }
+        if (recoveryTimer !== null) {
+            window.clearTimeout(recoveryTimer);
+            recoveryTimer = null;
+        }
+
+        rows.forEach((row) => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length < 6) return;
+
+            const xpCell = cells[4];
+            const levelCell = cells[5];
+
+            // Keep an existing annotation in place unless its value needs changing.
+            // Removing and rebuilding it on every scan caused needless DOM work/flicker.
+            const oldAnnotation = levelCell.querySelector(ANNOTATION_SELECTOR);
+
+            // Migrate text left behind by the previous version, which wrote "level (max)"
+            // directly into textContent and forced the cell width to 42px.
+            if (levelCell.children.length === 0) {
+                const legacyText = levelCell.textContent.match(/^\s*(\d+)\s+\(\d+\)\s*$/);
+                if (legacyText) levelCell.textContent = legacyText[1];
+            }
+            if (levelCell.style.width === '42px') {
+                levelCell.style.removeProperty('width');
+            }
+
+            // Width and no-wrap rules are installed as CSS at document-start, before
+            // this table is painted; do not rewrite inline styles during each scan.
+
+            // Put the current level in a fixed-width span. A fixed cell width alone
+            // cannot align the suffix because the suffix follows the variable-width number.
+            let currentLevelSpan = levelCell.querySelector(CURRENT_LEVEL_SELECTOR);
+            if (!currentLevelSpan) {
+                const textNode = Array.from(levelCell.childNodes).find((node) =>
+                    node.nodeType === Node.TEXT_NODE && /^\s*\d+/.test(node.nodeValue || '')
+                );
+                if (textNode) {
+                    const match = textNode.nodeValue.match(/^(\s*)(\d+)([\s\S]*)$/);
+                    if (match) {
+                        currentLevelSpan = document.createElement('span');
+                        currentLevelSpan.setAttribute('data-cmd-current-level', 'true');
+                        currentLevelSpan.textContent = match[2];
+                        textNode.parentNode.insertBefore(currentLevelSpan, textNode);
+                        textNode.nodeValue = match[1] + match[3];
+                    }
+                }
+            }
+
+            const currentXp = readCurrentXp(xpCell);
+            const currentLevel = readCurrentLevel(levelCell);
+            if (currentXp === null || currentLevel === null) {
+                if (oldAnnotation) oldAnnotation.remove();
+                return;
+            }
+
+            const possibleLevel = calculateMaxPossibleLevel(currentXp);
+            if (possibleLevel === null || possibleLevel <= currentLevel) {
+                if (oldAnnotation) oldAnnotation.remove();
+                return;
+            }
+
+            const expectedText = ' (' + possibleLevel + ')';
+            if (oldAnnotation) {
+                if (oldAnnotation.textContent !== expectedText) {
+                    oldAnnotation.textContent = expectedText;
+                }
+                return;
+            }
+
+            const annotation = document.createElement('span');
+            annotation.setAttribute('data-cmd-max-possible-level', 'true');
+            annotation.textContent = expectedText;
+            annotation.style.whiteSpace = 'nowrap';
+            annotation.style.fontWeight = 'normal';
+            annotation.style.display = 'inline-block';
+            annotation.style.overflow = 'visible';
+
+            // Keep the suffix on the same line as the current level.
+            levelCell.appendChild(annotation);
+        });
+
+        // Reveal the panel only after its first annotation pass, avoiding a visible
+        // frame where the level column has its original layout and then changes.
+        commanderTable.setAttribute('data-cmd-max-level-ready', 'true');
+    }
+
+    function scheduleScan(delay = 80) {
+        if (scanTimer !== null) window.clearTimeout(scanTimer);
+        scanTimer = window.setTimeout(() => {
+            scanTimer = null;
+            scanCommanders();
+        }, delay);
+    }
+
+    function stopWatching() {
+        if (observer) {
+            observer.disconnect();
+            observer = null;
+        }
+        observedRoot = null;
+        if (scanTimer !== null) {
+            window.clearTimeout(scanTimer);
+            scanTimer = null;
+        }
+        if (recoveryTimer !== null) {
+            window.clearTimeout(recoveryTimer);
+            recoveryTimer = null;
+        }
+    }
+
+    function startWatching() {
+        if (!document.documentElement || observer || !isCommandersRoute()) return;
+        observedRoot = document.documentElement;
+        observer = new MutationObserver(onMutations);
+        observer.observe(observedRoot, { childList: true, characterData: true, subtree: true });
+        scheduleScan(0);
+    }
+
+    function handleRouteChange() {
+        if (!isCommandersRoute()) {
+            stopWatching();
+            document.querySelectorAll(COMMANDER_TABLE_SELECTOR).forEach((table) => {
+                table.setAttribute('data-cmd-max-level-ready', 'true');
+            });
+            removeAnnotations();
+            return;
+        }
+        installEarlyStyles();
+        startWatching();
+        scheduleScan(0);
+    }
+
+    function isAnnotationNode(node) {
+        return node && node.nodeType === Node.ELEMENT_NODE &&
+            (node.matches(ANNOTATION_SELECTOR) || node.closest(ANNOTATION_SELECTOR));
+    }
+
+    function containsCommanderTable(node) {
+        return node && node.nodeType === Node.ELEMENT_NODE &&
+            (node.matches(COMMANDER_TABLE_SELECTOR) || node.querySelector(COMMANDER_TABLE_SELECTOR));
+    }
+
+    function onMutations(records) {
+        if (!isCommandersRoute()) return;
+
+        const commanderTable = document.querySelector(COMMANDER_TABLE_SELECTOR);
+        for (const record of records) {
+            // Ignore our own span insertions/removals so the observer cannot trigger a loop.
+            const changedNodes = [...record.addedNodes, ...record.removedNodes];
+            if (record.target.nodeType === Node.ELEMENT_NODE && record.target.closest(ANNOTATION_SELECTOR)) {
+                continue;
+            }
+            if (changedNodes.length > 0 && changedNodes.every(isAnnotationNode)) {
+                continue;
+            }
+
+            if (commanderTable && commanderTable.contains(record.target)) {
+                scheduleScan();
+                return;
+            }
+            if ([...record.addedNodes].some(containsCommanderTable)) {
+                scheduleScan(0);
+                return;
+            }
+        }
+    }
+
+    function start() {
+        if (!document.documentElement) return;
+
+        // Keep the early style available for first paint, but only observe DOM
+        // mutations while the Commander route is active.
+        installEarlyStyles();
+        window.addEventListener('hashchange', handleRouteChange);
+        window.addEventListener('popstate', handleRouteChange);
+        window.addEventListener('pageshow', handleRouteChange);
+        handleRouteChange();
+    }
+
+    if (document.documentElement) {
+        start();
+    } else {
+        const earlyStart = new MutationObserver(() => {
+            if (!document.documentElement) return;
+            earlyStart.disconnect();
+            start();
+        });
+        earlyStart.observe(document, { childList: true, subtree: true });
+    }
+})();
