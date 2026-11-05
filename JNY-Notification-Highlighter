@@ -1,0 +1,163 @@
+// ==UserScript==
+// @name         [JNY] Notification Highlighter ready
+// @namespace    JNY.NotificationHighlighter
+// @description Highlights “x is left" on the square notifications in RED.
+Highlights incoming caravans carrying GOLD in GREEN.
+Highlights incoming caravans carrying non-basic items in BLUE.
+Ignores normal resource shipments (wood, clay, iron, stone, food) to reduce clutter.
+more features to add but I'll drop now with everything else
+// @version      1.0
+// @match        https://elgea.illyriad.co.uk/*
+// @run-at       document-start
+// @grant        none
+// ==/UserScript==
+
+(function () {
+    'use strict';
+
+    const HARVEST_TEXT = "are left on the square";
+
+    const BASIC = new Set([
+        "Wood",
+        "Clay",
+        "Iron",
+        "Stone",
+        "Food"
+    ]);
+
+    let observer = null;
+    let started = false;
+
+    function isTargetPage() {
+        return location.hash.includes("/Communication/Notifications");
+    }
+
+    function underline(td, color) {
+        td.style.boxShadow = "none";
+        td.style.borderBottom = `3px solid ${color}`;
+        td.style.backgroundClip = "padding-box";
+    }
+
+    function classify(td) {
+        if (td.dataset.jnyChecked) return;
+        td.dataset.jnyChecked = "1";
+
+        const text = td.textContent || "";
+
+        // RED: harvest
+        if (text.includes(HARVEST_TEXT)) {
+            underline(td, "rgba(255,45,45,0.9)");
+            return;
+        }
+
+        // HARD EXCLUSIONS
+        if (text.includes("deliver to Hub:")) return;
+        if (text.includes("arrive at Town:")) return;
+
+        const hasCaravan = td.querySelector('img[title="Caravans"]');
+        const hasMe = td.querySelector('.nameYou');
+
+        if (!hasCaravan || !hasMe) return;
+
+        const cargo = [...td.querySelectorAll(
+            'img[title], .resIcon, .itemsprite, .calamity, .base'
+        )]
+        .map(el => el.getAttribute('title'))
+        .filter(Boolean)
+        .filter(t => t !== "Caravans");
+
+        if (cargo.length === 0) return;
+
+        // GREEN: GOLD
+        if (cargo.includes("Gold")) {
+            underline(td, "rgba(0,200,0,0.9)");
+            return;
+        }
+
+        // BLUE: NON-BASIC ITEMS
+        const hasSpecial = cargo.some(t =>
+            t !== "Gold" && !BASIC.has(t)
+        );
+
+        if (hasSpecial) {
+            underline(td, "rgba(0,120,255,0.9)");
+            return;
+        }
+    }
+
+    function scan(root = document) {
+        const tds = root.getElementsByTagName("td");
+
+        for (let i = 0; i < tds.length; i++) {
+            classify(tds[i]);
+        }
+    }
+
+    function start() {
+        if (started) return;
+        started = true;
+
+        scan(document);
+
+        observer = new MutationObserver((mutations) => {
+            for (const m of mutations) {
+                for (const node of m.addedNodes) {
+                    if (node.nodeType !== 1) continue;
+
+                    if (node.tagName === "TD") {
+                        classify(node);
+                    } else {
+                        scan(node);
+                    }
+                }
+            }
+        });
+
+        if (document.body) {
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+        }
+    }
+
+    function stop() {
+        if (!started) return;
+        started = false;
+
+        if (observer) {
+            observer.disconnect();
+            observer = null;
+        }
+    }
+
+    function update() {
+        if (isTargetPage()) {
+            start();
+        } else {
+            stop();
+        }
+    }
+
+    // SPA-safe hook
+    window.addEventListener("hashchange", update);
+
+    function waitForBody(cb) {
+        if (document.body) return cb();
+
+        const obs = new MutationObserver(() => {
+            if (document.body) {
+                obs.disconnect();
+                cb();
+            }
+        });
+
+        obs.observe(document.documentElement, {
+            childList: true,
+            subtree: true
+        });
+    }
+
+    waitForBody(update);
+
+})();
