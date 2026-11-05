@@ -1,0 +1,171 @@
+// ==UserScript==
+// @name         [JNY] Per Item Cost
+// @namespace    illyriad.mail.trade.price
+// @version      1.7.1
+// @description  Calculates per-item price on buy/sell trade mail.
+// @match        https://elgea.illyriad.co.uk/*
+// @run-at       document-start
+// @grant        none
+// ==/UserScript==
+
+(function () {
+    'use strict';
+
+    const MAIL_ROUTE = '/Communication/ReadMail/';
+    const CELL_SELECTOR = 'td[colspan="2"]';
+    const BADGE_SELECTOR = '.jny-unit-price';
+    let started = false;
+    let bodyWaiter = null;
+
+    function isMailPage() {
+        return location.hash.includes(MAIL_ROUTE);
+    }
+
+    function parseTradeBlock(td) {
+        // Read only the original cell text, excluding our own inserted label.
+        const clone = td.cloneNode(true);
+        clone.querySelectorAll(BADGE_SELECTOR).forEach((badge) => badge.remove());
+        const text = clone.innerText || clone.textContent || '';
+
+        const qtyMatch = text.match(/\b([\d,]+)\s+of a total\b/i);
+        const goldMatch = text.match(/\bfor a total of\s+([\d,]+(?:\.\d+)?)/i);
+        if (!qtyMatch || !goldMatch) return null;
+
+        const quantity = Number(qtyMatch[1].replace(/,/g, ''));
+        const totalGold = Number(goldMatch[1].replace(/,/g, ''));
+
+        if (!Number.isFinite(quantity) || quantity <= 0 ||
+            !Number.isFinite(totalGold) || totalGold < 0) {
+            return null;
+        }
+
+        const unitPrice = totalGold / quantity;
+        return Number.isFinite(unitPrice) ? unitPrice : null;
+    }
+
+    function formatNumber(value) {
+        if (!Number.isFinite(value)) return '';
+        return value.toLocaleString(undefined, { maximumFractionDigits: 6 });
+    }
+
+    function updateCell(td) {
+        if (!(td instanceof Element) || !td.matches(CELL_SELECTOR)) return;
+
+        const price = parseTradeBlock(td);
+        let badge = td.querySelector(BADGE_SELECTOR);
+
+        if (price === null) {
+            if (badge) badge.remove();
+            return;
+        }
+
+        const label = ' ' + formatNumber(price) + ' gold/item';
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'jny-unit-price';
+            badge.setAttribute('aria-label', 'Calculated unit price');
+            badge.style.color = '#000';
+            badge.style.fontSize = 'inherit';
+            badge.style.fontWeight = '600';
+            badge.style.pointerEvents = 'none';
+            badge.style.whiteSpace = 'nowrap';
+            badge.style.marginLeft = '6px';
+            td.appendChild(badge);
+        }
+
+        if (badge.textContent !== label) badge.textContent = label;
+    }
+
+    function scan(root) {
+        if (!isMailPage() || !root) return;
+
+        if (root instanceof Element && root.matches(CELL_SELECTOR)) {
+            updateCell(root);
+        }
+
+        if (typeof root.querySelectorAll === 'function') {
+            root.querySelectorAll(CELL_SELECTOR).forEach(updateCell);
+        }
+    }
+
+    function removeBadges() {
+        document.querySelectorAll(BADGE_SELECTOR).forEach((badge) => badge.remove());
+    }
+
+    function closestCell(node) {
+        const element = node instanceof Element ? node : node && node.parentElement;
+        return element && element.closest ? element.closest(CELL_SELECTOR) : null;
+    }
+
+    function handleMutations(mutations) {
+        if (!isMailPage()) return;
+
+        const changedCells = new Set();
+
+        for (const mutation of mutations) {
+            // Ignore mutations caused only by our own label.
+            const targetElement = mutation.target instanceof Element
+                ? mutation.target
+                : mutation.target && mutation.target.parentElement;
+            if (targetElement && targetElement.closest(BADGE_SELECTOR)) continue;
+
+            const parentCell = closestCell(mutation.target);
+            if (parentCell) changedCells.add(parentCell);
+
+            for (const node of mutation.addedNodes) {
+                if (!(node instanceof Element)) continue;
+                if (node.closest(BADGE_SELECTOR)) continue;
+                if (node.matches(CELL_SELECTOR)) changedCells.add(node);
+                node.querySelectorAll(CELL_SELECTOR).forEach((cell) => changedCells.add(cell));
+            }
+        }
+
+        changedCells.forEach(updateCell);
+    }
+
+    function start() {
+        if (started || !document.body) return;
+        started = true;
+
+        scan(document);
+
+        const observer = new MutationObserver(handleMutations);
+        observer.observe(document.body, {
+            childList: true,
+            characterData: true,
+            subtree: true
+        });
+    }
+
+    function startWhenBodyReady() {
+        if (document.body) {
+            start();
+            return;
+        }
+
+        bodyWaiter = new MutationObserver(() => {
+            if (!document.body) return;
+            bodyWaiter.disconnect();
+            bodyWaiter = null;
+            start();
+        });
+
+        bodyWaiter.observe(document, { childList: true, subtree: true });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!document.body) return;
+            if (bodyWaiter) {
+                bodyWaiter.disconnect();
+                bodyWaiter = null;
+            }
+            start();
+        }, { once: true });
+    }
+
+    window.addEventListener('hashchange', () => {
+        if (isMailPage()) scan(document);
+        else removeBadges();
+    });
+
+    startWhenBodyReady();
+})();
