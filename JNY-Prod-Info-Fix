@@ -1,0 +1,65 @@
+// ==UserScript==
+// @name         [JNY] Prodinfo fix ready
+// @namespace    illy-prodinfo-mobile-fix
+// @version      1.0
+// @description the production info "?" now works on mobile
+// @match        https://elgea.illyriad.co.uk/*
+// @run-at       document-end
+// ==/UserScript==
+
+(() => {
+
+    const TARGET = "#/Town/BuildingProduction/";
+
+    let active = null;
+
+    function isTargetPage() {
+        return location.hash.startsWith(TARGET);
+    }
+
+    function show(el) {
+        const rect = el.getBoundingClientRect();
+
+        el.dispatchEvent(new MouseEvent("mouseover", {
+            bubbles: true,
+            cancelable: true,
+            clientX: rect.left + rect.width / 2,
+            clientY: rect.top + rect.height / 2
+        }));
+
+        active = el;
+    }
+
+    function hide() {
+        if (!active) return;
+
+        active.dispatchEvent(new MouseEvent("mouseout", {
+            bubbles: true,
+            cancelable: true
+        }));
+
+        active = null;
+    }
+
+    document.addEventListener("click", (e) => {
+        if (!isTargetPage()) return;
+
+        const el = e.target.closest("img.prodinfo");
+
+        if (el) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (active === el) hide();
+            else {
+                hide();
+                show(el);
+            }
+            return;
+        }
+
+        hide();
+
+    }, true);
+
+})();
