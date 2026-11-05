@@ -125,7 +125,7 @@
     scripts: [
       { id:'bzn-buildlevel', name:'BZN Building Levels', url:'https://bazoon.town/js/BZNCODE_BUILDLEVEL.user.js' },
       { id:'bzn-fsp', name:'BZN Food Sov Overlay', url:'https://bazoon.town/js/BZNCODE_FSP.user.js' },
-      { id:'bzn-tmg', name:'BZN Town Graphics', url:'https://github.com/LordThot/Info/blob/main/BZN%20Town%20Map%20Graphics' },
+      { id:'bzn-tmg', name:'BZN Town Graphics', url:'https://bazoon.town/js/BZNCODE_TMG.user.js' },
       { id:'bzn-tdr', name:'BZN Dropdown', url:'https://bazoon.town/js/BZNCODE_TDR.user.js' },
       { id:'bzn-opy', name:'BZN Occupy Preset', url:'https://bazoon.town/js/BZNCODE_OPY.user.js' },
       { id:'bzn-pbs', name:'BZN Prez Build Stats', url:'https://bazoon.town/js/BZNCODE_PBS.user.js' },
@@ -149,10 +149,10 @@
     id: 'others',
     name: 'Others',
     scripts: [
-      { id:'linkify', name:'Linkify', url:'https://raw.githubusercontent.com/LordThot/Info/main/linkify' },
+      { id:'linkify', name:'Linkify', url:'https://v3.durctools.uk/gm/linkify.user.js' },
 
 { id:'jny-ans', name:'Anatomy Name Shortner', url:'https://raw.githubusercontent.com/LordThot/JNY-Scripts/main/AnatShortner.js' },
-{ id:'jah-auto-covert', name:'Jah Auto-Covert', url:'https://raw.githubusercontent.com/LordThot/Info/main/Jah%20AutoCovert.js' }, { id:'luper-notes', name:'Luper Notes', url:'https://raw.githubusercontent.com/LordThot/Info/main/LuperNotes.user.js' }
+{ id:'jah-auto-covert', name:'Jah Auto-Covert', url:'https://update.greasyfork.org/scripts/572566/Eye%20of%20Jah%20-%20Auto-Default%20Covert.user.js' }, { id:'luper-notes', name:'Luper Notes', url:'https://raw.githubusercontent.com/HoRRis-Lupercal/LuperScripts/main/LuperNotes.user.js' }
     ]
   },
   {
