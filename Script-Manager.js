@@ -138,11 +138,11 @@
     id: 'jny-tools',
     name: 'JNY Tools',
     scripts: [
-      { id:'jny-notifications-highlighter', name:'JNY Notifications Highlighter', url:'https://raw.githubusercontent.com/LordThot/Info/main/JNY%20Notifications%20Highlighter' },
-      { id:'jny-per-item-cost', name:'JNY Per Item Cost', url:'https://raw.githubusercontent.com/LordThot/Info/main/JNY%20Per%20Item%20Cost' },
-      { id:'jny-tax-slider-arrows', name:'JNY Tax Slider Arrows', url:'https://raw.githubusercontent.com/LordThot/Info/main/JNY%20Tax%20Slider%20fix' },
-{ id:'cmd-max-level', name:'JNY Commander Max Level Possible', url:'https://raw.githubusercontent.com/LordThot/Info/main/Commander%20Max%20Level' },
-            { id:'jny-auto-open-spell', name:'JNY Auto Open Spell', url:'https://raw.githubusercontent.com/LordThot/Info/main/JNY%20auto%20Open%20Spell%20' }
+      { id:'jny-notifications-highlighter', name:'JNY Notifications Highlighter', url:'https://raw.githubusercontent.com/LordThot/JNY-Scripts/main/JNY-Notification-Highlighter' },
+      { id:'jny-per-item-cost', name:'JNY Per Item Cost', url:'https://raw.githubusercontent.com/LordThot/JNY-Scripts/main/JNY-Mail-Per-Item-Cost' },
+      { id:'jny-tax-slider-arrows', name:'JNY Tax Slider Arrows', url:'https://raw.githubusercontent.com/LordThot/JNY-Scripts/main/JNY-Tax-Slider-Fix' },
+{ id:'cmd-max-level', name:'JNY Commander Max Level Possible', url:'https://raw.githubusercontent.com/LordThot/JNY-Scripts/main/Max-Com-Possible' },
+            { id:'jny-auto-open-spell', name:'JNY Auto Open Spell', url:'https://raw.githubusercontent.com/LordThot/JNY-Scripts/main/JNY-AutoOpen-Spell' }
     ]
   },
   {
@@ -151,7 +151,7 @@
     scripts: [
       { id:'linkify', name:'Linkify', url:'https://raw.githubusercontent.com/LordThot/Info/main/linkify' },
 
-{ id:'jny-ans', name:'Anatomy Name Shortner', url:'https://raw.githubusercontent.com/LordThot/Info/main/Ans.js' },
+{ id:'jny-ans', name:'Anatomy Name Shortner', url:'https://raw.githubusercontent.com/LordThot/JNY-Scripts/main/AnatShortner.js' },
 { id:'jah-auto-covert', name:'Jah Auto-Covert', url:'https://raw.githubusercontent.com/LordThot/Info/main/Jah%20AutoCovert.js' }, { id:'luper-notes', name:'Luper Notes', url:'https://raw.githubusercontent.com/LordThot/Info/main/LuperNotes.user.js' }
     ]
   },
@@ -159,11 +159,11 @@
     id: 'mobile-fixes',
     name: 'Mobile Fixes',
     scripts: [
-      { id:'jny-zoomfix', name:'JNY ZoomFix', url:'https://raw.githubusercontent.com/LordThot/Info/main/JNY%20ZoomFix' },
-      { id:'jny-move-logout', name:'JNY Move Logout', url:'https://raw.githubusercontent.com/LordThot/Info/main/JNY%20Move%20Logout' },
-      { id:'jny-dt-market-tooltip-fix', name:'JNY DT Market Tooltip Fix', url:'https://raw.githubusercontent.com/LordThot/Info/main/JNY%20DT%20market%20Tooltip%20Fix' },
-      { id:'jny-discoveries-fix', name:'JNY Discoveries Fix', url:'https://raw.githubusercontent.com/LordThot/Info/main/JNY%20Discoveries%20fix' },
-      { id:'jny-prod-info-fix', name:'JNY Prod Info Fix', url:'https://raw.githubusercontent.com/LordThot/Info/main/JNY%20Prod%20Info%20fix' }
+      { id:'jny-zoomfix', name:'JNY ZoomFix', url:'https://raw.githubusercontent.com/LordThot/JNY-Scripts/main/JNY-Map-Fix' },
+      { id:'jny-move-logout', name:'JNY Move Logout', url:'https://raw.githubusercontent.com/LordThot/JNY-Scripts/main/JNY-Move-Logout' },
+      { id:'jny-dt-market-tooltip-fix', name:'JNY DT Market Tooltip Fix', url:'https://raw.githubusercontent.com/LordThot/JNY-Scripts/main/JNY-DT-Market-Tooltip-Fix' },
+      { id:'jny-discoveries-fix', name:'JNY Discoveries Fix', url:'https://raw.githubusercontent.com/LordThot/JNY-Scripts/main/JNY-Discoveries-Fix' },
+      { id:'jny-prod-info-fix', name:'JNY Prod Info Fix', url:'https://raw.githubusercontent.com/LordThot/JNY-Scripts/main/JNY-Prod-Info-Fix' }
     ]
   }
 ];
