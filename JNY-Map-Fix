@@ -1,0 +1,327 @@
+// ==UserScript==
+// @name         [JNY] Zoom Slider Fix done
+// @namespace    illyriad.map.zoom.fix
+// @description allows forntapping on map zoom slider
+// @version      1.3
+// @match        https://elgea.illyriad.co.uk/*
+// @run-at       document-start
+// @grant        none
+// ==/UserScript==
+
+(() => {
+
+const MAX_ZOOM = 25;
+
+let bound = false;
+let sliderTouchActive = false;
+
+// ONLY run on the World Map page
+function isTargetPage() {
+    return /^#\/World\/Map(?:\/|$)/i.test(location.hash);
+}
+
+function updateZoom(zoom) {
+
+    if (!isTargetPage()) return;
+    if (!window.mapData) return;
+
+    mapData.zoom = zoom;
+
+    $("#MapZoomInd").css(
+        "left",
+        2 + 6 * (25 - zoom)
+    );
+
+    loadData("");
+    ChangeMapLocation();
+    ZoomButtons();
+
+    console.log("[JNY] ZOOM:", zoom);
+}
+
+function getBar() {
+    return document.getElementById("MapZoomInd")?.parentElement;
+}
+
+function isMapSliderTarget(el) {
+
+    const bar = getBar();
+
+    if (!bar || !el) return false;
+
+    return bar.contains(el);
+}
+
+function getZoomFromX(clientX) {
+
+    const bar = getBar();
+
+    if (!bar) return null;
+
+    const rect = bar.getBoundingClientRect();
+
+    if (!rect.width) return null;
+
+    const pct = (clientX - rect.left) / rect.width;
+
+    return Math.max(
+        0,
+        Math.min(
+            MAX_ZOOM,
+            Math.round(25 - pct * 25)
+        )
+    );
+}
+
+// --------------------------------------------------
+// MOUSE
+// --------------------------------------------------
+
+function mouseHandler(e) {
+
+    if (!isTargetPage()) return;
+    if (!isMapSliderTarget(e.target)) return;
+
+    const zoom = getZoomFromX(e.clientX);
+
+    if (zoom === null) return;
+
+    updateZoom(zoom);
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+}
+
+// --------------------------------------------------
+// TOUCH START
+// --------------------------------------------------
+
+function touchStartHandler(e) {
+
+    if (!isTargetPage()) return;
+    if (!isMapSliderTarget(e.target)) return;
+
+    sliderTouchActive = true;
+
+    const touch = e.touches[0];
+
+    if (touch) {
+
+        const zoom = getZoomFromX(touch.clientX);
+
+        if (zoom !== null) {
+            updateZoom(zoom);
+        }
+    }
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+}
+
+// --------------------------------------------------
+// TOUCH MOVE
+// --------------------------------------------------
+
+function touchMoveHandler(e) {
+
+    if (!sliderTouchActive) return;
+
+    if (!isTargetPage()) {
+        sliderTouchActive = false;
+        return;
+    }
+
+    const touch = e.touches[0];
+
+    if (touch) {
+
+        const zoom = getZoomFromX(touch.clientX);
+
+        if (zoom !== null) {
+            updateZoom(zoom);
+        }
+    }
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+}
+
+// --------------------------------------------------
+// TOUCH END
+// --------------------------------------------------
+
+function touchEndHandler(e) {
+
+    if (!sliderTouchActive) return;
+
+    sliderTouchActive = false;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+}
+
+// --------------------------------------------------
+// TOUCH CANCEL
+// --------------------------------------------------
+
+function touchCancelHandler(e) {
+
+    if (!sliderTouchActive) return;
+
+    sliderTouchActive = false;
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+}
+
+// --------------------------------------------------
+// BIND
+// --------------------------------------------------
+
+function bind() {
+
+    if (bound || !isTargetPage()) return;
+
+    const bar = getBar();
+
+    if (!bar) return;
+
+    console.log("[JNY] MAP ZOOM BOUND");
+
+    document.addEventListener(
+        "mousedown",
+        mouseHandler,
+        true
+    );
+
+    document.addEventListener(
+        "touchstart",
+        touchStartHandler,
+        {
+            capture: true,
+            passive: false
+        }
+    );
+
+    document.addEventListener(
+        "touchmove",
+        touchMoveHandler,
+        {
+            capture: true,
+            passive: false
+        }
+    );
+
+    document.addEventListener(
+        "touchend",
+        touchEndHandler,
+        {
+            capture: true,
+            passive: false
+        }
+    );
+
+    document.addEventListener(
+        "touchcancel",
+        touchCancelHandler,
+        {
+            capture: true,
+            passive: false
+        }
+    );
+
+    bound = true;
+}
+
+// --------------------------------------------------
+// UNBIND
+// --------------------------------------------------
+
+function unbind() {
+
+    if (!bound) return;
+
+    document.removeEventListener(
+        "mousedown",
+        mouseHandler,
+        true
+    );
+
+    document.removeEventListener(
+        "touchstart",
+        touchStartHandler,
+        true
+    );
+
+    document.removeEventListener(
+        "touchmove",
+        touchMoveHandler,
+        true
+    );
+
+    document.removeEventListener(
+        "touchend",
+        touchEndHandler,
+        true
+    );
+
+    document.removeEventListener(
+        "touchcancel",
+        touchCancelHandler,
+        true
+    );
+
+    bound = false;
+    sliderTouchActive = false;
+
+    console.log("[JNY] MAP ZOOM UNBOUND");
+}
+
+// --------------------------------------------------
+// SPA / DOM RESET
+// --------------------------------------------------
+
+function resetIfNeeded() {
+
+    if (!isTargetPage()) {
+        unbind();
+        return;
+    }
+
+    if (!getBar()) {
+        unbind();
+        return;
+    }
+
+    bind();
+}
+
+// --------------------------------------------------
+// SPA NAVIGATION
+// --------------------------------------------------
+
+window.addEventListener("hashchange", () => {
+
+    console.log("[JNY] HASH CHANGE:", location.hash);
+
+    resetIfNeeded();
+
+    setTimeout(resetIfNeeded, 300);
+});
+
+// --------------------------------------------------
+// DOM WATCH
+// --------------------------------------------------
+
+const obs = new MutationObserver(() => {
+    resetIfNeeded();
+});
+
+obs.observe(document.documentElement, {
+    childList: true,
+    subtree: true
+});
+
+console.log("[JNY] MAP ZOOM FIX ACTIVE");
+
+})();
