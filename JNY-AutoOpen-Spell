@@ -1,0 +1,205 @@
+// ==UserScript==
+// @name        [JNY] Auto Open Spell
+// @namespace   openspell
+// @version     1.0
+// @description Auto opens last opened spell accordian
+// @match       https://elgea.illyriad.co.uk/*
+// @run-at      document-end
+// @grant       none
+// ==/UserScript==
+
+(() => {
+    'use strict';
+
+    if (window.__illySpellAutoOpenRunning) return;
+    window.__illySpellAutoOpenRunning = true;
+
+    const TARGET_PATH = "#/Magic/Cast";
+    const KEY = "illy_spell_auto_open_v2";
+    const HEADER = "h3.ui-accordion-header a";
+
+    let enabled = true;
+    let lastSpell = null;
+    let observer = null;
+    let framePending = false;
+    let attemptedLink = null;
+    let button = null;
+
+    function isTargetPage() {
+        return location.hash.includes(TARGET_PATH);
+    }
+
+    function load() {
+        try {
+            const raw = localStorage.getItem(KEY);
+            if (!raw) return;
+
+            const data = JSON.parse(raw);
+            enabled = data.enabled ?? true;
+            lastSpell = data.lastSpell ?? null;
+        } catch {}
+    }
+
+    function save() {
+        try {
+            localStorage.setItem(KEY, JSON.stringify({
+                enabled,
+                lastSpell
+            }));
+        } catch {}
+    }
+
+    function getRoot() {
+        return document.querySelector("#MainContentDiv") ||
+            document.body;
+    }
+
+    function initTracking() {
+        document.addEventListener("click", event => {
+            const link = event.target.closest?.(HEADER);
+            if (!link) return;
+
+            lastSpell = link.textContent.trim();
+            attemptedLink = link;
+            save();
+        }, true);
+    }
+
+    function openLastSpell() {
+        if (!enabled || !lastSpell || !isTargetPage()) return;
+
+        const root = getRoot();
+
+        for (const link of root.querySelectorAll(HEADER)) {
+            if (link.textContent.trim() !== lastSpell) continue;
+
+            if (link === attemptedLink) return;
+
+            const heading = link.closest("h3");
+            if (!heading) return;
+
+            if (heading.classList.contains("ui-state-active")) {
+                attemptedLink = link;
+                return;
+            }
+
+            attemptedLink = link;
+            link.click();
+            return;
+        }
+    }
+
+    // Original toggle styling, text and placement are preserved.
+    function injectToggle() {
+        if (!isTargetPage()) return;
+        if (document.querySelector(".spell-toggle-btn")) return;
+
+        const root = getRoot();
+        const icon = root.querySelector("#vid");
+        if (!icon || !icon.parentElement) return;
+
+        const btn = document.createElement("span");
+
+        const render = () => {
+            btn.textContent = enabled ? "OPEN: ON" : "OPEN: OFF";
+            btn.style.color = "black";
+            btn.style.fontWeight = "bold";
+            btn.style.cursor = "pointer";
+            btn.style.textDecoration = "underline";
+            btn.style.marginRight = "8px";
+        };
+
+        render();
+
+        btn.addEventListener("click", () => {
+            enabled = !enabled;
+            save();
+            render();
+
+            if (enabled) {
+                attemptedLink = null;
+                scheduleUpdate();
+            }
+        });
+
+        btn.className = "spell-toggle-btn";
+        icon.parentElement.insertBefore(btn, icon);
+        button = btn;
+    }
+
+    function isRelevantNode(node) {
+        if (!node || node.nodeType !== Node.ELEMENT_NODE) return false;
+
+        return Boolean(
+            node.matches?.("#vid, h3.ui-accordion-header") ||
+            node.querySelector?.("#vid, h3.ui-accordion-header") ||
+            node.closest?.("h3.ui-accordion-header")
+        );
+    }
+
+    function isRelevantMutation(mutation) {
+        const target = mutation.target.nodeType === Node.ELEMENT_NODE
+            ? mutation.target
+            : mutation.target.parentElement;
+
+        if (isRelevantNode(target)) return true;
+
+        for (const node of mutation.addedNodes) {
+            if (isRelevantNode(node)) return true;
+        }
+
+        return false;
+    }
+
+    function scheduleUpdate() {
+        if (framePending) return;
+        framePending = true;
+
+        requestAnimationFrame(() => {
+            framePending = false;
+            if (!isTargetPage()) return;
+
+            injectToggle();
+            openLastSpell();
+        });
+    }
+
+    function stopWatcher() {
+        observer?.disconnect();
+        observer = null;
+
+        button?.remove();
+        button = null;
+        attemptedLink = null;
+        framePending = false;
+    }
+
+    function handleRoute() {
+        stopWatcher();
+        if (!isTargetPage()) return;
+
+        observer = new MutationObserver(mutations => {
+            if (mutations.some(isRelevantMutation)) {
+                scheduleUpdate();
+            }
+        });
+
+        // Observe body so replacement of MainContentDiv is detected.
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        scheduleUpdate();
+    }
+
+    function init() {
+        load();
+        initTracking();
+
+        window.addEventListener("hashchange", handleRoute);
+        handleRoute();
+    }
+
+    init();
+})();
