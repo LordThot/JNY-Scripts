@@ -1,0 +1,90 @@
+// ==UserScript==
+// @name         [JNY] Discoveries  Tooltip Fix
+// @namespace    illy-discoveries-mobile
+// @description discovered now stay when tapped on mobile
+// @version      1.0
+// @match        https://elgea.illyriad.co.uk/*
+// @run-at       document-end
+// ==/UserScript==
+
+(() => {
+
+    const TARGET = "#/Research/Discoveries";
+
+    function isTargetPage() {
+        return location.hash === TARGET;
+    }
+
+    let activeBox = null;
+
+    document.addEventListener("click", (e) => {
+
+        if (!isTargetPage()) return;
+
+        const box = e.target.closest(".resPopup");
+
+        if (!box) {
+
+            // tap elsewhere closes current tooltip
+            if (activeBox) {
+
+                const events = jQuery._data(activeBox, "events");
+
+                if (events?.mouseout?.[0]) {
+                    events.mouseout[0].handler.call(
+                        activeBox,
+                        jQuery.Event("mouseout")
+                    );
+                }
+
+                activeBox = null;
+            }
+
+            return;
+        }
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const events = jQuery._data(box, "events");
+
+        if (!events?.mouseover?.[0]) return;
+
+        // tap same box again = close
+        if (activeBox === box) {
+
+            if (events?.mouseout?.[0]) {
+                events.mouseout[0].handler.call(
+                    box,
+                    jQuery.Event("mouseout")
+                );
+            }
+
+            activeBox = null;
+            return;
+        }
+
+        // close previous tooltip
+        if (activeBox) {
+
+            const oldEvents = jQuery._data(activeBox, "events");
+
+            if (oldEvents?.mouseout?.[0]) {
+                oldEvents.mouseout[0].handler.call(
+                    activeBox,
+                    jQuery.Event("mouseout")
+                );
+            }
+        }
+
+        // open new tooltip
+        events.mouseover[0].handler.call(
+            box,
+            jQuery.Event("mouseover")
+        );
+
+        activeBox = box;
+
+    }, true);
+
+})();
