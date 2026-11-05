@@ -1,0 +1,98 @@
+// ==UserScript==
+// @name         [JNY] Tax Slider Arrows
+// @namespace    illy-tax-slider
+// @description adds buttons to adjust tax rate by 1%
+// @version      1.0
+// @match        https://elgea.illyriad.co.uk/*
+// @run-at       document-end
+// ==/UserScript==
+
+(() => {
+    const STEP = 1;
+    const ROUTE = "#/Town/Taxation";
+
+    let lastHash = "";
+
+    function getValue() {
+        return parseInt($("#amtTaxation").val(), 10) || 0;
+    }
+
+    function setValue(value) {
+        const $slider = $("#slider-taxation");
+        const $input = $("#amtTaxation");
+
+        if (!$slider.length || !$input.length) return;
+
+        value = Math.max(0, Math.min(100, value));
+
+        $slider.slider("value", value);
+        $input.val(value);
+
+        const opts = $slider.slider("option");
+
+        if (opts && typeof opts.change === "function") {
+            opts.change.call($slider[0], null, { value });
+        }
+
+        if (opts && typeof opts.slide === "function") {
+            opts.slide.call($slider[0], null, { value });
+        }
+    }
+
+    function inject() {
+        const slider = document.querySelector("#slider-taxation");
+        const input = document.querySelector("#amtTaxation");
+
+        if (!slider || !input) return;
+
+        const td = slider.closest("td");
+        if (!td) return;
+
+        // prevent duplicates
+        if (td.querySelector(".illy-tax-arrow")) return;
+
+        td.style.position = "relative";
+
+        const mk = (txt, side) => {
+            const el = document.createElement("div");
+            el.className = "illy-tax-arrow";
+            el.textContent = txt;
+
+            el.style.cssText = `
+                position:absolute;
+                ${side}: -18px;
+                top: calc(50% - 5px);
+                transform: translateY(-50%);
+                cursor: pointer;
+                user-select: none;
+                font-size: 14px;
+                z-index: 1;
+            `;
+            return el;
+        };
+
+        const left = mk("◀", "left");
+        const right = mk("▶", "right");
+
+        left.onclick = () => setValue(getValue() - STEP);
+        right.onclick = () => setValue(getValue() + STEP);
+
+        td.appendChild(left);
+        td.appendChild(right);
+    }
+
+    function tick() {
+        if (location.hash !== ROUTE) {
+            lastHash = "";
+            return;
+        }
+
+        if (location.hash !== lastHash) {
+            lastHash = location.hash;
+        }
+
+        inject();
+    }
+
+    setInterval(tick, 300);
+})();
