@@ -1,0 +1,115 @@
+// ==UserScript==
+// @name         [JNY] Move Logout
+// @namespace    illy-ui-fixes
+// @version      1.0
+// @description  Repositions only the logout icon
+// @match        https://elgea.illyriad.co.uk/*
+// @run-at       document-start
+// ==/UserScript==
+
+(() => {
+    'use strict';
+
+    const STYLE_ID = 'jny-move-logout-v14-style';
+    const SELECTOR = 'img.logout';
+    const OFFSET_Y = 15;
+    const EDGE_GAP = 4;
+
+    let observer = null;
+    let resizeHandler = null;
+    let currentIcon = null;
+    let scheduled = false;
+
+    function ensureStyle() {
+        if (document.getElementById(STYLE_ID)) return;
+
+        const style = document.createElement('style');
+        style.id = STYLE_ID;
+        style.textContent = `
+            img.logout[data-jny-move-logout="v1.4"] {
+                position: fixed !important;
+                z-index: 2147483000 !important;
+                margin: 0 !important;
+                transform: none !important;
+                pointer-events: auto !important;
+            }
+        `;
+
+        (document.head || document.documentElement).appendChild(style);
+    }
+
+    function placeIcon(icon) {
+        if (!icon || !icon.isConnected) return;
+
+        // Do not touch src, dimensions, opacity, parent, or any other image.
+        // Read the current on-screen location before the first positioning change.
+        if (icon.dataset.jnyMoveLogout !== 'v1.4') {
+            const rect = icon.getBoundingClientRect();
+
+            icon.dataset.jnyMoveLogout = 'v1.4';
+            icon.style.left = Math.round(rect.left) + 'px';
+            icon.style.top = Math.round(Math.max(EDGE_GAP, rect.top - OFFSET_Y)) + 'px';
+            icon.style.right = 'auto';
+            icon.style.bottom = 'auto';
+        }
+
+        // Keep the icon inside the viewport after resize/orientation changes.
+        const rect = icon.getBoundingClientRect();
+        const maxLeft = Math.max(EDGE_GAP, window.innerWidth - rect.width - EDGE_GAP);
+        const maxTop = Math.max(EDGE_GAP, window.innerHeight - rect.height - EDGE_GAP);
+        const left = Math.min(Math.max(EDGE_GAP, rect.left), maxLeft);
+        const top = Math.min(Math.max(EDGE_GAP, rect.top), maxTop);
+
+        icon.style.left = Math.round(left) + 'px';
+        icon.style.top = Math.round(top) + 'px';
+    }
+
+    function scan() {
+        scheduled = false;
+        ensureStyle();
+
+        const icon = document.querySelector(SELECTOR);
+        if (!icon) {
+            currentIcon = null;
+            return;
+        }
+
+        if (currentIcon !== icon) {
+            currentIcon = icon;
+            placeIcon(icon);
+        } else {
+            placeIcon(icon);
+        }
+    }
+
+    function scheduleScan() {
+        if (scheduled) return;
+        scheduled = true;
+        requestAnimationFrame(scan);
+    }
+
+    function start() {
+        if (!document.documentElement) return;
+
+        ensureStyle();
+
+        if (!observer) {
+            observer = new MutationObserver(scheduleScan);
+            observer.observe(document.documentElement, { childList: true, subtree: true });
+        }
+
+        if (!resizeHandler) {
+            resizeHandler = scheduleScan;
+            window.addEventListener('resize', resizeHandler, { passive: true });
+            window.addEventListener('orientationchange', resizeHandler, { passive: true });
+        }
+
+        scheduleScan();
+    }
+
+    if (document.documentElement) {
+        start();
+    } else {
+        document.addEventListener('DOMContentLoaded', start, { once: true });
+    }
+})();
