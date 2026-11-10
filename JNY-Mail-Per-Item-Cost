@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         [JNY] Per Item Cost
-// @namespace    illyriad.mail.trade.price
-// @version      1.9
+// @name         [JNY]Tade Order Mail Fix
+// @namespace    illyriad.TradeMail.fix
+// @version      1.0
 // @description  Calculates per-item trade prices and formats visible trade-mail numbers.
 // @match        https://elgea.illyriad.co.uk/*
 // @run-at       document-start
